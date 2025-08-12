@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Pickup Location + Nearby Drivers</title>
+  <script src="https://maps.googleapis.com/maps/api/js?key=API_KEY"></script>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: Arial, sans-serif;
+    }
+    #container {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+      box-sizing: border-box;
+    }
+    #mapContainer {
+      flex: 0 0 70%;
+      position: relative;
+      margin: 10px;
+      border: 1px solid #ccc;
+    }
+    #map {
+      height: 100%;
+      width: 100%;
+    }
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 5;
+      background: white;
+      padding: 10px;
+      border-radius: 4px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      font-size: 14px;
+    }
+    #controls label {
+      margin-right: 10px;
+    }
+    #apiData {
+      flex: 0 0 30%;
+      margin: 10px;
+      max-height: calc(100vh - 20px);
+      overflow-y: auto;
+      background: #f7f7f7;
+      padding: 10px;
+      border: 1px solid #ccc;
+      font-family: monospace;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+
+<div id="container">
+  <div id="mapContainer">
+    <div id="controls">
+      <label>Pickup Lat: <input type="number" id="pickupLat" step="0.00001" /></label>
+      <label>Pickup Lng: <input type="number" id="pickupLng" step="0.00001" /></label>
+      <button onclick="searchNearby()">Search Nearby Drivers</button>
+    </div>
+    <div id="map"></div>
+  </div>
+
+  <div id="apiData">API response will appear here...</div>
+</div>
+
+<script>
+  let map;
+  let pickupMarker = null;
+  const driverMarkers = {};
+  
+  function initMap() {
+    map = new google.maps.Map(document.getElementById("map"), {
+      center: { lat: 12.9716, lng: 77.5946 }, // Bangalore center
+      zoom: 12,
+    });
+
+    map.addListener('click', (e) => {
+      const lat = e.latLng.lat();
+      const lng = e.latLng.lng();
+      document.getElementById('pickupLat').value = lat.toFixed(5);
+      document.getElementById('pickupLng').value = lng.toFixed(5);
+      searchNearby();
+    });
+  }
+  
+  async function searchNearby() {
+    const lat = parseFloat(document.getElementById('pickupLat').value);
+    const lng = parseFloat(document.getElementById('pickupLng').value);
+    if (isNaN(lat) || isNaN(lng)) {
+      alert('Please enter valid latitude and longitude');
+      return;
+    }
+    
+    if (pickupMarker) {
+      pickupMarker.setPosition({ lat, lng });
+    } else {
+      pickupMarker = new google.maps.Marker({
+        position: { lat, lng },
+        map: map,
+        icon: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+        title: 'Pickup Location'
+      });
+    }
+    
+    map.panTo({ lat, lng });
+
+    try {
+      const res = await fetch('http://localhost:3000/trip/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pickupLat: lat, pickupLng: lng, radiusKm: 5 }),
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        alert('Error fetching nearby drivers');
+        return;
+      }
+
+      // Display API response as formatted JSON
+      document.getElementById('apiData').textContent = JSON.stringify(data, null, 2);
+
+      Object.values(driverMarkers).forEach(m => m.setMap(null));
+      Object.keys(driverMarkers).forEach(k => delete driverMarkers[k]);
+
+      data.drivers.forEach(driver => {
+        driverMarkers[driver.driverId] = new google.maps.Marker({
+          position: { lat: driver.lat, lng: driver.lng },
+          map: map,
+          label: driver.driverId,
+          title: `Driver ${driver.driverId} - ${driver.distance} km away, ETA: ${driver.eta}`
+        });
+      });
+
+      console.log(`Found ${data.count} drivers nearby`);
+    } catch (err) {
+      alert('Failed to fetch drivers: ' + err.message);
+    }
+  }
+
+  window.onload = initMap;
+</script>
+
+</body>
+</html>
