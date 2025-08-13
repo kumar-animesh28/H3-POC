@@ -51,16 +51,14 @@ const findNearbyDrivers = async (pickupLat, pickupLng, radiusKm = 3) => {
           parseFloat(driverData.lng)
         );
 
-        if (distance <= radiusKm) {
-          nearbyDrivers.push({
-            driverId,
-            lat: parseFloat(driverData.lat),
-            lng: parseFloat(driverData.lng),
-            distance: Math.round(distance * 100) / 100,
-            eta: Math.ceil(distance * 2) + " mins",
-          });
-          nearbyDriverIds.add(driverId);
-        }
+        nearbyDrivers.push({
+          driverId,
+          lat: parseFloat(driverData.lat),
+          lng: parseFloat(driverData.lng),
+          distance: Math.round(distance * 100) / 100,
+          eta: Math.ceil(distance * 2) + " mins",
+        });
+        nearbyDriverIds.add(driverId);
       }
     }
   }
